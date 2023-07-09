@@ -1,7 +1,13 @@
+/// Wordle is a game where you have to guess a word. The word is chosen by the game, and you
+/// have 6 attempts to guess it. After each attempt, the game tells you which letters you
+/// guessed correctly, and which letters are in the word but in the wrong position.
+///
+/// This module implements the game logic.
 use std::collections::HashMap;
 
 use serde::{Deserialize, Serialize};
 
+/// State represents the current player state of a game.
 #[derive(Debug, Eq, PartialEq)]
 pub enum State {
     Playing,
@@ -9,6 +15,8 @@ pub enum State {
     Lost,
 }
 
+/// Letter represents the position of a single letter in an attempted
+/// word.
 #[derive(Debug)]
 pub enum Letter {
     Correct(char),
@@ -16,6 +24,8 @@ pub enum Letter {
     Wrong(char),
 }
 
+/// Game represents a single Wordle board that can be rendered and presented
+/// to the player.
 #[derive(Debug)]
 pub struct Game {
     pub state: State,
@@ -23,6 +33,8 @@ pub struct Game {
 }
 
 impl Game {
+    /// `attempted_letters` returns a sorted deduplicated vector of all the letters that
+    /// have been attempted so far.
     pub fn attempted_letters(&self) -> Vec<char> {
         let mut letters = self
             .attempts
@@ -43,11 +55,15 @@ impl Game {
 /// Wordle represents a single Worldle game.
 #[derive(Deserialize, Serialize, Debug, Clone)]
 pub struct Wordle {
+    /// The target word that the player is trying to guess.
     pub target_word: String,
+
+    /// The words that the player has attempted so far.
     pub attempts: Vec<String>,
 }
 
 impl Wordle {
+    /// `new` creates a new Wordle game with the given target word.
     pub fn new(target_word: String) -> anyhow::Result<Wordle> {
         if target_word.len() < 3 {
             anyhow::bail!("target_word must be at least 3 letters long")
@@ -59,6 +75,7 @@ impl Wordle {
         })
     }
 
+    /// `game` returns a Game instance that can be rendered and presented to the player.
     pub fn game(&self) -> anyhow::Result<Game> {
         let state = if self.attempts.contains(&self.target_word) {
             State::Won
@@ -76,6 +93,11 @@ impl Wordle {
         })
     }
 
+    // `assess` compares the given word to the target word, and returns a vector of positional
+    // Letter instances. The vector is the same length as the target word, and each Letter
+    // corresponds to the letter in the same position in the target word.
+    //
+    // Duplicates are handled as per the rules of Wordle.
     pub fn assess(&self, word: impl Into<String>) -> anyhow::Result<Vec<Letter>> {
         let word = word.into().to_uppercase();
         if word.len() != self.target_word.len() {
@@ -83,13 +105,15 @@ impl Wordle {
         }
 
         let mut letters = Vec::new();
+
+        // Keep track of the number of times each letter appears in the target word.
         let target_letter_count = self.target_word.chars().fold(HashMap::new(), |mut acc, c| {
             *acc.entry(c).or_insert(0) += 1;
             acc
         });
 
+        // Keep track of the number of times each letter appears in the played word.
         let mut dup_letter_count = HashMap::new();
-
         for (i, c) in word.chars().enumerate() {
             if self.target_word.contains(c) {
                 if self.target_word.chars().nth(i) == Some(c) {
@@ -104,7 +128,8 @@ impl Wordle {
             }
         }
 
-        // Remove dups
+        // Remove dups by replacing duplicated CorrectButWrongPosition letters with Wrong letters.
+        // https://wordfinder.yourdictionary.com/blog/can-letters-repeat-in-wordle-a-closer-look-at-the-rules/
         letters = letters
             .iter()
             .map(|l| match l {
@@ -125,6 +150,8 @@ impl Wordle {
         Ok(letters)
     }
 
+    /// `play_turn` plays a turn of the game, and returns a Game instance that can be rendered
+    /// and presented to the player.
     pub fn play_turn(&mut self, word: impl Into<String>) -> anyhow::Result<Game> {
         let word = word.into().to_uppercase();
         if word.len() != self.target_word.len() {

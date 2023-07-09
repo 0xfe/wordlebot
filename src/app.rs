@@ -1,3 +1,5 @@
+/// App is the main bot application and handler. It implements the outer game logic, keeping
+/// track of the game state per user, scores, and persistence.
 use anyhow::*;
 use log::*;
 use mobot::{
@@ -49,6 +51,7 @@ fn render_game(game: &game::Game) -> String {
     s
 }
 
+/// Score represents a user's score.
 #[derive(Clone, Default, Serialize, Deserialize)]
 struct Score {
     pub games: u32,
@@ -67,14 +70,8 @@ impl Display for Score {
     }
 }
 
-#[derive(Serialize, Deserialize)]
-struct GameHistory {
-    start_time: String,
-    end_time: String,
-    target_word: String,
-    attempts: Vec<String>,
-}
-
+/// SaveData represents the data that is saved for each user on disk. Data
+/// is saved in JSON format.
 #[derive(Serialize, Deserialize)]
 struct SaveData {
     user_id: String,
@@ -114,10 +111,12 @@ impl App {
         }
     }
 
+    /// Set the valid words for this game.
     pub fn set_valid_words(&mut self, valid_words: HashSet<String>) {
         self.valid_words = Arc::new(valid_words);
     }
 
+    /// Set the directory where game state is saved.
     pub fn set_save_dir(&mut self, save_dir: String) {
         self.save_dir = save_dir;
     }
@@ -191,6 +190,7 @@ impl App {
         .context(format!("Error writing file {}", filename))
     }
 
+    /// Load game state for user.
     async fn load(&mut self, user: &User) -> anyhow::Result<()> {
         if self.save_dir.is_empty() {
             bail!("No save directory configured");
