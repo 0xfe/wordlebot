@@ -5,7 +5,7 @@ Telegram API framework.
 
 ## Try it out
 
-You can try out Bad Worlde Bot by starting a chat with [@badwordlebot](t.me/badwordlebot).
+You can try out Bad Worlde Bot by starting a chat with [@badwordlebot](https://t.me/badwordlebot).
 
 Features:
 
