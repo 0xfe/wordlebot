@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Eq, PartialEq)]
@@ -81,17 +83,44 @@ impl Wordle {
         }
 
         let mut letters = Vec::new();
+        let target_letter_count = self.target_word.chars().fold(HashMap::new(), |mut acc, c| {
+            *acc.entry(c).or_insert(0) += 1;
+            acc
+        });
+
+        let mut dup_letter_count = HashMap::new();
+
         for (i, c) in word.chars().enumerate() {
             if self.target_word.contains(c) {
                 if self.target_word.chars().nth(i) == Some(c) {
                     letters.push(Letter::Correct(c));
+                    *dup_letter_count.entry(c).or_insert(0) += 1;
                 } else {
                     letters.push(Letter::CorrectButWrongPosition(c));
+                    *dup_letter_count.entry(c).or_insert(0) += 1;
                 }
             } else {
                 letters.push(Letter::Wrong(c));
             }
         }
+
+        // Remove dups
+        letters = letters
+            .iter()
+            .map(|l| match l {
+                Letter::Correct(c) => Letter::Correct(*c),
+                Letter::CorrectButWrongPosition(c) => {
+                    let letter_count = dup_letter_count.entry(*c).or_insert(0);
+                    if *letter_count > *target_letter_count.get(c).unwrap_or(&0) {
+                        *letter_count -= 1;
+                        Letter::Wrong(*c)
+                    } else {
+                        Letter::CorrectButWrongPosition(*c)
+                    }
+                }
+                Letter::Wrong(c) => Letter::Wrong(*c),
+            })
+            .collect();
 
         Ok(letters)
     }

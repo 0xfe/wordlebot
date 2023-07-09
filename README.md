@@ -43,7 +43,7 @@ wordlebot -t target_words.txt -v validwords.txt -s /path/to/savedir
 ### TODO
 
 - [x] Show letters already guessed
-- [ ] Handle double letters correctly
+- [x] Handle duplicate letters correctly
 
 ## License
 
