@@ -77,11 +77,16 @@ struct GameHistory {
 
 #[derive(Serialize, Deserialize)]
 struct SaveData {
-    last_wordle: Option<Wordle>,
     user_id: String,
+    #[serde(default)]
     user_handle: String,
+    #[serde(default)]
+    user_first_name: String,
+    #[serde(default)]
+    user_last_name: String,
     won_words: Vec<String>,
     score: Score,
+    last_wordle: Option<Wordle>,
 }
 
 /// App represents the bot state for the wordle bot.
@@ -170,6 +175,8 @@ impl App {
         let save_data = SaveData {
             user_id: user.id.clone().to_string(),
             user_handle: user.username.clone().unwrap_or_default(),
+            user_first_name: user.first_name.clone(),
+            user_last_name: user.last_name.clone().unwrap_or_default(),
             won_words: self.won_words.iter().cloned().collect(),
             score: self.score(&user.id.to_string()).await,
             last_wordle,
@@ -231,13 +238,17 @@ pub async fn handle_chat_event(e: Event, state: State<App>) -> Result<Action, an
 
     // If there's no active game, start one.
     if app.wordle.is_none() {
-        // Load game state
-
         // Scan the list for an unplayed word, or pick a random one.
+        info!(
+            "Loaded {} won words: {:?}",
+            app.won_words.len(),
+            app.won_words
+        );
+
         target_word = app
             .target_words
             .iter()
-            .find(|&w| !app.won_words.contains(w))
+            .find(|&w| !app.won_words.contains(&w.to_ascii_uppercase()))
             .or_else(|| app.target_words.choose(&mut rand::thread_rng()))
             .ok_or(anyhow!("no target words found"))?
             .clone()

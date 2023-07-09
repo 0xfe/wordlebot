@@ -40,6 +40,11 @@ export TELEGRAM_TOKEN="your Telegram API key"
 wordlebot -t target_words.txt -v validwords.txt -s /path/to/savedir
 ```
 
+### TODO
+
+- [ ] Show letters already guessed
+- [ ] Handle double letters correctly
+
 ## License
 
 MIT License Copyright 2023 Mohit Muthanna Cheppudira
