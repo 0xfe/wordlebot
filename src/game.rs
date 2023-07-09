@@ -1,3 +1,5 @@
+use serde::{Deserialize, Serialize};
+
 #[derive(Debug, Eq, PartialEq)]
 pub enum State {
     Playing,
@@ -19,10 +21,10 @@ pub enum Letter {
 }
 
 /// Wordle represents a single Worldle game.
-#[derive(Debug, Clone)]
+#[derive(Deserialize, Serialize, Debug, Clone)]
 pub struct Wordle {
     pub target_word: String,
-    attempts: Vec<String>,
+    pub attempts: Vec<String>,
 }
 
 impl Wordle {
