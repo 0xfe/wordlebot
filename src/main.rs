@@ -1,4 +1,4 @@
-use std::collections::HashSet;
+use std::{collections::HashSet, path::Path};
 
 use crate::app::*;
 
@@ -58,6 +58,14 @@ async fn start(args: Args) -> anyhow::Result<()> {
     target_words.iter().for_each(|w| {
         valid_words.insert(w.to_ascii_lowercase());
     });
+
+    if valid_words.is_empty() {
+        error!("No valid words found. Not validating words.");
+    }
+
+    if !Path::new(&args.save_dir.clone().unwrap_or_default()).exists() {
+        error!("Save directory does not exist. Not saving state.");
+    }
 
     // Initialize the bot app state.
     let mut app = App::new(args.game_name, target_words);

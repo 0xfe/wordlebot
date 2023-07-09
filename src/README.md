@@ -15,13 +15,29 @@ Features:
 - Keeps track of wins/losses per user
 - Words must be offensive (okay, that's not a real feature)
 
-## Instructions
+## Usage
 
 Set you Telegram API key and run `wordlebot` with a set of word files:
 
 ```
+Usage: wordlebot [-n <game-name>] [-t <target-words>] [-v <valid-words>] [-s <save-dir>]
+
+Reach new heights.
+
+Options:
+  -n, --game-name   how the bot presents itself in the welcome message
+  -t, --target-words
+                    file containing target words for the bot, one per line
+  -v, --valid-words file containing valid words for the bot, one per line
+  -s, --save-dir    directory to save user state. If empty, state is not saved.
+  --help            display usage information
+```
+
+### Example
+
+```
 export TELEGRAM_TOKEN="your Telegram API key"
-wordlebot -t target_words.txt -v validwords.txt
+wordlebot -t target_words.txt -v validwords.txt -s /path/to/savedir
 ```
 
 ## License
