@@ -42,7 +42,7 @@ wordlebot -t target_words.txt -v validwords.txt -s /path/to/savedir
 
 ### TODO
 
-- [ ] Show letters already guessed
+- [x] Show letters already guessed
 - [ ] Handle double letters correctly
 
 ## License

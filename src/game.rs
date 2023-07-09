@@ -8,16 +8,34 @@ pub enum State {
 }
 
 #[derive(Debug)]
+pub enum Letter {
+    Correct(char),
+    CorrectButWrongPosition(char),
+    Wrong(char),
+}
+
+#[derive(Debug)]
 pub struct Game {
     pub state: State,
     pub attempts: Vec<Vec<Letter>>,
 }
 
-#[derive(Debug)]
-pub enum Letter {
-    Correct(char),
-    CorrectButWrongPosition(char),
-    Wrong(char),
+impl Game {
+    pub fn attempted_letters(&self) -> Vec<char> {
+        let mut letters = self
+            .attempts
+            .iter()
+            .flat_map(|a| a.iter())
+            .map(|l| match l {
+                Letter::Correct(c) => *c,
+                Letter::CorrectButWrongPosition(c) => *c,
+                Letter::Wrong(c) => *c,
+            })
+            .collect::<Vec<_>>();
+        letters.sort();
+        letters.dedup();
+        letters
+    }
 }
 
 /// Wordle represents a single Worldle game.

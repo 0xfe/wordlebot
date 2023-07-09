@@ -239,12 +239,6 @@ pub async fn handle_chat_event(e: Event, state: State<App>) -> Result<Action, an
     // If there's no active game, start one.
     if app.wordle.is_none() {
         // Scan the list for an unplayed word, or pick a random one.
-        info!(
-            "Loaded {} won words: {:?}",
-            app.won_words.len(),
-            app.won_words
-        );
-
         target_word = app
             .target_words
             .iter()
@@ -309,7 +303,17 @@ pub async fn handle_chat_event(e: Event, state: State<App>) -> Result<Action, an
     let mut reply = render_game(&game);
 
     match game.state {
-        game::State::Playing => reply.push_str("\nNice try\\. Guess another word\\?"),
+        game::State::Playing => reply.push_str(
+            format!(
+                "\nNice try\\. Guess another word\\?\nAttempts: {}",
+                game.attempted_letters()
+                    .iter()
+                    .map(|c| format!("`{}`", c))
+                    .collect::<Vec<_>>()
+                    .join(" ")
+            )
+            .as_str(),
+        ),
         game::State::Won => {
             app.won_words.insert(target_word);
             app.wordle = None;
