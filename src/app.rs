@@ -40,7 +40,7 @@ fn render_game(game: &game::Game) -> String {
                 game::Letter::Correct(c) => {
                     s.push_str(&format!("{} ", emoji_letter(*c).to_string()))
                 }
-                game::Letter::CorrectButWrongPosition(c) => s.push_str(&format!(" `{}`  ", c)),
+                game::Letter::CorrectButWrongPosition(c) => s.push_str(&format!(" *_{}_*  ", c)),
                 game::Letter::Wrong(_) => s.push_str("\u{2796} "),
             }
         }
@@ -258,7 +258,7 @@ pub async fn handle_chat_event(e: Event, state: State<App>) -> Result<Action, an
 
         app.inc_games(&from).await;
         return Ok(Action::ReplyText(format!(
-            "Hi {}, Welcome to {}! {}\nGuess the {}-letter word.",
+            "Hi {}, Welcome to {}!\n\n{}\nGuess the {}-letter word.",
             from.first_name,
             app.game_name,
             first_game,
@@ -306,7 +306,7 @@ pub async fn handle_chat_event(e: Event, state: State<App>) -> Result<Action, an
             reply.push_str(
                 escape_md(
                     format!(
-                        "\nYou won!\nYour score: {}",
+                        "\nYou won! \u{1F46F}\nYour score: {}",
                         app.score(&from.id.to_string()).await
                     )
                     .as_str(),
@@ -324,7 +324,7 @@ pub async fn handle_chat_event(e: Event, state: State<App>) -> Result<Action, an
             reply.push_str(
                 escape_md(
                     format!(
-                        "\nYou lost!\nYour score: {}",
+                        "\nYou lost! \u{1F979}\nYour score: {}",
                         app.score(&from.id.to_string()).await
                     )
                     .as_str(),

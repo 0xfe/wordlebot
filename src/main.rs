@@ -15,7 +15,11 @@ mod game;
 /// Reach new heights.
 struct Args {
     /// how the bot presents itself in the welcome message
-    #[argh(option, short = 'n', default = "String::from(\"Bad Wordle\")")]
+    #[argh(
+        option,
+        short = 'n',
+        default = "String::from(\"Bad Wordle \u{1F608}\")"
+    )]
     game_name: String,
 
     /// file containing target words for the bot, one per line
