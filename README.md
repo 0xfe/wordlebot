@@ -1,6 +1,6 @@
 # WordleBot
 
-WordleBot is a Telegram bot that implements the Wordle game. It's built with the [MOBOT](github.com/0xfe/mobot)
+WordleBot is a Telegram bot that implements the Wordle game. It's built with the [MOBOT](https://github.com/0xfe/mobot)
 Telegram API framework.
 
 ## Try it out
