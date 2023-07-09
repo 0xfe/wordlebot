@@ -10,7 +10,6 @@ You can try out Bad Worlde Bot by starting a chat with [@badwordlebot](https://t
 Features:
 
 - Provide arbitrary word lists, of any length (not just 5-letters)
-- Words can be any length
 - Keeps track of words, wins, losses, etc. per user.
 - Persists state of all games through restarts.
 - Words must be offensive (okay, that's not a real feature)
