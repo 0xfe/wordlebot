@@ -3,20 +3,18 @@
 WordleBot is a Telegram bot that implements the Wordle game. It's built with the [MOBOT](https://github.com/0xfe/mobot)
 Telegram API framework.
 
-![melon](https://github.com/0xfe/wordlebot/assets/241299/df213dfb-40fd-4c32-ab01-68a5f47c223b)
-
-
-
-## Try it out
-
-You can try out Bad Worlde Bot by starting a chat with [@badwordlebot](https://t.me/badwordlebot). Probably NSFW.
-
-Features:
+### Features:
 
 - Provide arbitrary word lists, of any length (not just 5-letters)
 - Keeps track of words, wins, losses, etc. per user.
 - Persists state of all games through restarts.
 - Words must be offensive (okay, that's not a real feature)
+
+## Try it out
+
+You can try out Bad Worlde Bot by starting a chat with [@badwordlebot](https://t.me/badwordlebot). Probably NSFW.
+
+![melon](https://github.com/0xfe/wordlebot/assets/241299/df213dfb-40fd-4c32-ab01-68a5f47c223b)
 
 ## Usage
 
