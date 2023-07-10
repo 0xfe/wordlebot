@@ -18,7 +18,7 @@ struct Args {
     #[argh(
         option,
         short = 'n',
-        default = "String::from(\"Bad Wordle \u{1F608}\")"
+        default = "String::from(\"Rude Wordle \u{1F608}\")"
     )]
     game_name: String,
 

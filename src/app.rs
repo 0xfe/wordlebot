@@ -35,12 +35,12 @@ fn emoji_letter(l: char) -> char {
 /// render_game takes a game::Game and returns a string representation of it.
 /// Emoji codepoints: https://emojipedia.org/emoji/
 fn render_game(game: &game::Game) -> String {
-    let mut s = String::new();
+    let mut s = String::from("Your attempts:\n\n");
     for attempt in &game.attempts {
         for letter in attempt {
             match letter {
                 game::Letter::Correct(c) => {
-                    s.push_str(&format!("{} ", emoji_letter(*c).to_string()))
+                    s.push_str(&format!(" {}", emoji_letter(*c).to_string()))
                 }
                 game::Letter::CorrectButWrongPosition(c) => s.push_str(&format!(" * `{}` *  ", c)),
                 game::Letter::Wrong(c) => {
