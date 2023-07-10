@@ -43,6 +43,10 @@ wordlebot -t target_words.txt -v validwords.txt -s /path/to/savedir
 
 - [x] Show letters already guessed
 - [x] Handle duplicate letters correctly
+- [ ] Bot Commands
+  - [ ] /help
+  - [ ] /quit
+  - [ ] /score
 
 ## License
 

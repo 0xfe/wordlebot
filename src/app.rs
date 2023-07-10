@@ -42,8 +42,11 @@ fn render_game(game: &game::Game) -> String {
                 game::Letter::Correct(c) => {
                     s.push_str(&format!("{} ", emoji_letter(*c).to_string()))
                 }
-                game::Letter::CorrectButWrongPosition(c) => s.push_str(&format!(" *_{}_*  ", c)),
-                game::Letter::Wrong(_) => s.push_str("\u{2796} "),
+                game::Letter::CorrectButWrongPosition(c) => s.push_str(&format!(" * `{}` *  ", c)),
+                game::Letter::Wrong(c) => {
+                    s.push_str(&format!(" || ~{}~ ||  ", c))
+                    // s.push_str("\u{2796} ")
+                }
             }
         }
         s.push_str("\n\n");
