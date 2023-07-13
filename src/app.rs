@@ -84,7 +84,10 @@ struct SaveData {
     user_first_name: String,
     #[serde(default)]
     user_last_name: String,
+    #[serde(default)]
     won_words: Vec<String>,
+    #[serde(default)]
+    played_words: Vec<String>,
     score: Score,
     last_wordle: Option<Wordle>,
 }
@@ -100,6 +103,7 @@ pub struct App {
     valid_words: Arc<HashSet<String>>,
 
     // Per chat ID
+    played_words: HashSet<String>,
     won_words: HashSet<String>,
     wordle: Option<Wordle>,
 }
@@ -179,6 +183,7 @@ impl App {
             user_handle: user.username.clone().unwrap_or_default(),
             user_first_name: user.first_name.clone(),
             user_last_name: user.last_name.clone().unwrap_or_default(),
+            played_words: self.played_words.iter().cloned().collect(),
             won_words: self.won_words.iter().cloned().collect(),
             score: self.score(&user.id.to_string()).await,
             last_wordle,
@@ -213,7 +218,12 @@ impl App {
         let save_data: SaveData = serde_json::from_slice(&contents)
             .context(format!("Error deserializing game state from {}", filename))?;
 
-        self.won_words = HashSet::from_iter(save_data.won_words);
+        self.won_words = HashSet::from_iter(save_data.won_words.clone());
+        if self.played_words.len() < self.won_words.len() {
+            self.played_words = HashSet::from_iter(save_data.won_words);
+        } else {
+            self.played_words = HashSet::from_iter(save_data.played_words);
+        }
         self.scores
             .write()
             .await
@@ -245,7 +255,7 @@ pub async fn handle_chat_event(e: Event, state: State<App>) -> Result<Action, an
         target_word = app
             .target_words
             .iter()
-            .find(|&w| !app.won_words.contains(&w.to_ascii_uppercase()))
+            .find(|&w| !app.played_words.contains(&w.to_ascii_uppercase()))
             .or_else(|| app.target_words.choose(&mut rand::thread_rng()))
             .ok_or(anyhow!("no target words found"))?
             .clone()
@@ -257,6 +267,7 @@ pub async fn handle_chat_event(e: Event, state: State<App>) -> Result<Action, an
             from.username.clone().unwrap_or("unknown".into()),
             target_word
         );
+
         app.wordle = Some(Wordle::new(target_word.clone())?);
         let first_game = if app.score(&from.id.to_string()).await.games == 0 {
             "This is your first game.".to_string()
@@ -264,6 +275,7 @@ pub async fn handle_chat_event(e: Event, state: State<App>) -> Result<Action, an
             format!("Your score: {}.", app.score(&from.id.to_string()).await)
         };
 
+        app.played_words.insert(target_word.clone());
         app.inc_games(&from).await;
         return Ok(Action::ReplyText(format!(
             "Hi {}, Welcome to {}!\n\n{}\nGuess the {}-letter word.",

@@ -1,3 +1,4 @@
 env.sh
 *.mo.txt
 /target
+/history
