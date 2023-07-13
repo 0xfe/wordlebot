@@ -83,10 +83,40 @@ async fn start(args: Args) -> anyhow::Result<()> {
             .into(),
     );
 
+    let mut router = Router::new(client).with_state(app);
+
+    // Setup bot commands
+    let commands = vec![
+        api::BotCommand {
+            command: "/help".into(),
+            description: "Show help".into(),
+        },
+        api::BotCommand {
+            command: "/new".into(),
+            description: "New game".into(),
+        },
+        api::BotCommand {
+            command: "/score".into(),
+            description: "Show my score".into(),
+        },
+    ];
+
+    router
+        .api
+        .set_my_commands(&api::SetMyCommandsRequest {
+            commands,
+            ..Default::default()
+        })
+        .await
+        .unwrap();
+
     info!("Starting bot...");
-    Router::new(client)
-        .with_state(app)
-        .add_route(Route::Default, handle_chat_event)
+    router
+        .add_route(
+            Route::Message(Matcher::Prefix("/".into())),
+            handle_bot_command,
+        )
+        .add_route(Route::Message(Matcher::Any), handle_chat_event)
         .start()
         .await;
 

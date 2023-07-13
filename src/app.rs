@@ -234,11 +234,7 @@ impl App {
     }
 }
 
-/// handle_chat_event is the main Telegram handler for the bot.
-pub async fn handle_chat_event(e: Event, state: State<App>) -> Result<Action, anyhow::Error> {
-    // Get the message
-    let message = e.update.get_message()?.clone().text.unwrap().clone();
-
+pub async fn new_game(e: Event, state: State<App>) -> Result<Action, anyhow::Error> {
     // Get the sender's first name
     let from = e.update.get_message()?.clone().from.unwrap_or_default();
 
@@ -249,45 +245,105 @@ pub async fn handle_chat_event(e: Event, state: State<App>) -> Result<Action, an
         warn!("No saved game state: {}", e);
     }
 
-    // If there's no active game, start one.
-    if app.wordle.is_none() {
-        // Scan the list for an unplayed word, or pick a random one.
-        target_word = app
-            .target_words
-            .iter()
-            .find(|&w| !app.played_words.contains(&w.to_ascii_uppercase()))
-            .or_else(|| app.target_words.choose(&mut rand::thread_rng()))
-            .ok_or(anyhow!("no target words found"))?
-            .clone()
-            .to_uppercase();
+    target_word = app
+        .target_words
+        .iter()
+        .find(|&w| !app.played_words.contains(&w.to_ascii_uppercase()))
+        .or_else(|| app.target_words.choose(&mut rand::thread_rng()))
+        .ok_or(anyhow!("no target words found"))?
+        .clone()
+        .to_uppercase();
 
-        info!(
-            "Starting new game with {} ({}), target word: {}.",
-            from.first_name,
-            from.username.clone().unwrap_or("unknown".into()),
-            target_word
-        );
+    info!(
+        "Starting new game with {} ({}), target word: {}.",
+        from.first_name,
+        from.username.clone().unwrap_or("unknown".into()),
+        target_word
+    );
 
-        app.wordle = Some(Wordle::new(target_word.clone())?);
-        let first_game = if app.score(&from.id.to_string()).await.games == 0 {
-            "This is your first game.".to_string()
-        } else {
-            format!("Your score: {}.", app.score(&from.id.to_string()).await)
-        };
+    app.wordle = Some(Wordle::new(target_word.clone())?);
+    let first_game = if app.score(&from.id.to_string()).await.games == 0 {
+        "This is your first game.".to_string()
+    } else {
+        format!("Your score: {}.", app.score(&from.id.to_string()).await)
+    };
 
-        app.played_words.insert(target_word.clone());
-        app.inc_games(&from).await;
-        return Ok(Action::ReplyText(format!(
-            "Hi {}, Welcome to {}!\n\n{}\nGuess the {}-letter word.",
-            from.first_name,
-            app.game_name,
-            first_game,
-            target_word.len()
-        )));
+    app.played_words.insert(target_word.clone());
+    app.inc_games(&from).await;
+    return Ok(Action::ReplyText(format!(
+        "Hi {}, Welcome to {}!\n\n{}\nGuess the {}-letter word.",
+        from.first_name,
+        app.game_name,
+        first_game,
+        target_word.len()
+    )));
+}
+
+pub async fn handle_bot_command(e: Event, state: State<App>) -> Result<Action, anyhow::Error> {
+    // Get the command
+    let command = e
+        .update
+        .get_message()?
+        .text
+        .as_ref()
+        .ok_or(anyhow!("No command"))?;
+
+    let reply = match command.as_str() {
+        "/help" => {
+            let game_name = state.get().read().await.game_name.clone();
+            format!(
+                "Welcome to {}! The goal of the game is to guess the target word within 6 tries.
+
+Type /new to restart the game or /score to see your score",
+                game_name
+            )
+        }
+
+        "/new" => {
+            return new_game(e, state).await;
+        }
+
+        "/score" => {
+            let from = e.update.get_message()?.clone().from.unwrap_or_default();
+            let mut app = state.get().write().await;
+
+            // Get the application state
+            if let Err(e) = app.load(&from).await {
+                warn!("No saved game state: {}", e);
+                format!("You have not played any games yet.")
+            } else {
+                format!("Your score: {}", app.score(&from.id.to_string()).await)
+            }
+        }
+
+        _ => "I don't know that command.".into(),
+    };
+
+    Ok(Action::ReplyText(reply))
+}
+/// handle_chat_event is the main Telegram handler for the bot.
+pub async fn handle_chat_event(e: Event, state: State<App>) -> Result<Action, anyhow::Error> {
+    // Get the message
+    let message = e.update.get_message()?.clone().text.unwrap().clone();
+
+    // Get the sender's first name
+    let from = e.update.get_message()?.clone().from.unwrap_or_default();
+
+    // Get the application state
+    if let Err(e) = state.get().write().await.load(&from).await {
+        warn!("No saved game state: {}", e);
     }
 
+    // If there's no active game, start one.
+    if state.get().read().await.wordle.is_none() {
+        // Scan the list for an unplayed word, or pick a random one.
+        return new_game(e, state).await;
+    }
+
+    let mut app = state.get().write().await;
+
     // There's an active game, so get the target word.
-    target_word = app.wordle.as_ref().unwrap().target_word.clone();
+    let target_word = app.wordle.as_ref().unwrap().target_word.clone();
     info!(
         "{} ({}) guessed {}",
         from.first_name,
@@ -354,7 +410,8 @@ pub async fn handle_chat_event(e: Event, state: State<App>) -> Result<Action, an
             reply.push_str(
                 escape_md(
                     format!(
-                        "\nYou lost! \u{1F979}\nYour score: {}",
+                        "\nYou lost! Target word: {} \u{1F979}\nYour score: {}",
+                        target_word.to_uppercase(),
                         app.score(&from.id.to_string()).await
                     )
                     .as_str(),
