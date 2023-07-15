@@ -303,6 +303,10 @@ Type /new to restart the game or /score to see your score",
             return new_game(e, state).await;
         }
 
+        "/start" => {
+            return new_game(e, state).await;
+        }
+
         "/score" => {
             let from = e.update.get_message()?.clone().from.unwrap_or_default();
             let mut app = state.get().write().await;
@@ -321,6 +325,7 @@ Type /new to restart the game or /score to see your score",
 
     Ok(Action::ReplyText(reply))
 }
+
 /// handle_chat_event is the main Telegram handler for the bot.
 pub async fn handle_chat_event(e: Event, state: State<App>) -> Result<Action, anyhow::Error> {
     // Get the message
