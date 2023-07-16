@@ -1,6 +1,7 @@
 use std::{collections::HashSet, path::Path};
 
 use crate::app::*;
+use crate::handlers::*;
 
 use anyhow::Context;
 use argh::FromArgs;
@@ -10,6 +11,7 @@ use rand::seq::SliceRandom;
 
 mod app;
 mod game;
+mod handlers;
 
 #[derive(FromArgs)]
 /// Reach new heights.

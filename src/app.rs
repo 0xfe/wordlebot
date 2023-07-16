@@ -2,10 +2,7 @@
 /// track of the game state per user, scores, and persistence.
 use anyhow::*;
 use log::*;
-use mobot::{
-    api::{escape_md, User},
-    *,
-};
+use mobot::{api::User, *};
 use rand::seq::SliceRandom;
 use std::{
     collections::{HashMap, HashSet},
@@ -20,43 +17,20 @@ use tokio::{
 
 use serde::{Deserialize, Serialize};
 
-use crate::game::{self, Wordle};
+use crate::game;
+use crate::game::Wordle;
 
-/// emoji_letter takes a capital letter and returns the corresponding emoji letter
-/// inside the Regional Indicator Symbol range.
-fn emoji_letter(l: char) -> char {
-    let base = 0x1F1E6;
-    let a = 'A' as u32;
-    let target = l.to_ascii_uppercase() as u32;
-
-    std::char::from_u32(base + target - a).unwrap_or('?')
-}
-
-/// render_game takes a game::Game and returns a string representation of it.
-/// Emoji codepoints: https://emojipedia.org/emoji/
-fn render_game(game: &game::Game) -> String {
-    let mut s = String::from("Your attempts:\n\n");
-    for attempt in &game.attempts {
-        for letter in attempt {
-            match letter {
-                game::Letter::Correct(c) => {
-                    s.push_str(&format!(" {}", emoji_letter(*c).to_string()))
-                }
-                game::Letter::CorrectButWrongPosition(c) => s.push_str(&format!(" * `{}` *  ", c)),
-                game::Letter::Wrong(c) => {
-                    s.push_str(&format!(" || ~{}~ ||  ", c))
-                    // s.push_str("\u{2796} ")
-                }
-            }
-        }
-        s.push_str("\n\n");
-    }
-    s
+pub enum Move {
+    Valid,
+    InvalidWord,
+    InvalidLength,
+    Won,
+    Lost,
 }
 
 /// Score represents a user's score.
 #[derive(Clone, Default, Serialize, Deserialize)]
-struct Score {
+pub struct Score {
     pub games: u32,
     pub wins: u32,
 }
@@ -96,16 +70,18 @@ struct SaveData {
 #[derive(Clone, Default, BotState)]
 pub struct App {
     // App global
-    game_name: String,
+    pub game_name: String,
+    admin_user: Option<String>,
+    admin_chat_id: Arc<RwLock<Option<i64>>>,
     save_dir: String,
     scores: Arc<RwLock<HashMap<String, Score>>>,
     target_words: Arc<Vec<String>>,
     valid_words: Arc<HashSet<String>>,
 
     // Per chat ID
+    pub wordle: Option<Wordle>,
     played_words: HashSet<String>,
     won_words: HashSet<String>,
-    wordle: Option<Wordle>,
 }
 
 impl App {
@@ -116,6 +92,61 @@ impl App {
             target_words: Arc::new(target_words),
             ..Default::default()
         }
+    }
+
+    pub fn is_playing(&self) -> bool {
+        if self.wordle.is_none() {
+            return false;
+        }
+
+        match self.wordle.as_ref().unwrap().game().unwrap().state {
+            game::State::Playing => true,
+            _ => false,
+        }
+    }
+
+    pub async fn start_game(&mut self) -> Result<String> {
+        // Get the sender's first name
+        let target_word = self
+            .target_words
+            .iter()
+            .find(|&w| !self.played_words.contains(&w.to_ascii_uppercase()))
+            .or_else(|| self.target_words.choose(&mut rand::thread_rng()))
+            .ok_or(anyhow!("no target words found"))?
+            .clone()
+            .to_uppercase();
+
+        self.wordle = Some(Wordle::new(target_word.clone())?);
+        self.played_words.insert(target_word.clone());
+        Ok(target_word)
+    }
+
+    /// Authorizes the user as an admin.
+    pub async fn auth_admin(&mut self, username: &str, chat_id: i64) -> bool {
+        if self.admin_user.is_some() && self.admin_user.as_ref().unwrap().eq(username) {
+            *self.admin_chat_id.write().await = Some(chat_id);
+            return true;
+        }
+        false
+    }
+
+    /// Sends a log message to the admin chat
+    pub async fn admin_log(&self, api: Arc<API>, text: String) {
+        let chat_id = *self.admin_chat_id.read().await;
+        if let Some(chat_id) = chat_id {
+            _ = api
+                .send_message(&api::SendMessageRequest {
+                    chat_id,
+                    text,
+                    ..Default::default()
+                })
+                .await;
+        }
+    }
+
+    /// Returns true if the word is a valid word.
+    pub fn is_valid_word(&self, word: String) -> bool {
+        self.valid_words.is_empty() || self.valid_words.contains(&word.to_ascii_lowercase())
     }
 
     /// Set the valid words for this game.
@@ -129,7 +160,7 @@ impl App {
     }
 
     /// Returns the user's current score
-    async fn score(&self, from: &String) -> Score {
+    pub async fn score(&self, from: &String) -> Score {
         self.scores
             .read()
             .await
@@ -139,7 +170,7 @@ impl App {
     }
 
     /// Increments the number of games this user played and saves state.
-    async fn inc_games(&self, from: &User) {
+    pub async fn inc_games(&self, from: &User) {
         self.scores
             .write()
             .await
@@ -152,20 +183,42 @@ impl App {
     }
 
     /// Increments the number of wins for this user and saves state.
-    async fn inc_wins(&self, from: &User) {
+    pub async fn inc_wins(&mut self, from: &User) {
         self.scores
             .write()
             .await
             .entry(from.id.to_string())
             .or_default()
             .wins += 1;
+        self.won_words
+            .insert(self.wordle.as_ref().unwrap().target_word.clone());
         if let Err(e) = self.save(from).await {
             error!("Error saving game state: {}", e);
         }
     }
 
+    pub async fn play_turn(&mut self, from: &User, word: String) -> anyhow::Result<Move> {
+        if !self.is_valid_word(word.clone()) {
+            return Ok(Move::InvalidWord);
+        }
+
+        if word.len() != self.wordle.as_ref().unwrap().target_word.len() {
+            return Ok(Move::InvalidLength);
+        }
+
+        let game = self.wordle.as_mut().unwrap().play_turn(word)?;
+        match game.state {
+            game::State::Won => {
+                self.inc_wins(&from).await;
+                Ok(Move::Won)
+            }
+            game::State::Lost => Ok(Move::Lost),
+            _ => Ok(Move::Valid),
+        }
+    }
+
     /// Save game state for user
-    async fn save(&self, user: &User) -> anyhow::Result<()> {
+    pub async fn save(&self, user: &User) -> anyhow::Result<()> {
         if self.save_dir.is_empty() {
             return Ok(());
         }
@@ -199,7 +252,7 @@ impl App {
     }
 
     /// Load game state for user.
-    async fn load(&mut self, user: &User) -> anyhow::Result<()> {
+    pub async fn load(&mut self, user: &User) -> anyhow::Result<()> {
         if self.save_dir.is_empty() {
             bail!("No save directory configured");
         }
@@ -232,211 +285,4 @@ impl App {
 
         Ok(())
     }
-}
-
-pub async fn new_game(e: Event, state: State<App>) -> Result<Action, anyhow::Error> {
-    // Get the sender's first name
-    let from = e.update.get_message()?.clone().from.unwrap_or_default();
-
-    // Get the application state
-    let mut app = state.get().write().await;
-    let target_word;
-    if let Err(e) = app.load(&from).await {
-        warn!("No saved game state: {}", e);
-    }
-
-    target_word = app
-        .target_words
-        .iter()
-        .find(|&w| !app.played_words.contains(&w.to_ascii_uppercase()))
-        .or_else(|| app.target_words.choose(&mut rand::thread_rng()))
-        .ok_or(anyhow!("no target words found"))?
-        .clone()
-        .to_uppercase();
-
-    info!(
-        "Starting new game with {} ({}), target word: {}.",
-        from.first_name,
-        from.username.clone().unwrap_or("unknown".into()),
-        target_word
-    );
-
-    app.wordle = Some(Wordle::new(target_word.clone())?);
-    let first_game = if app.score(&from.id.to_string()).await.games == 0 {
-        "This is your first game.".to_string()
-    } else {
-        format!("Your score: {}.", app.score(&from.id.to_string()).await)
-    };
-
-    app.played_words.insert(target_word.clone());
-    app.inc_games(&from).await;
-    return Ok(Action::ReplyText(format!(
-        "Hi {}, Welcome to {}!\n\n{}\nGuess the {}-letter word.",
-        from.first_name,
-        app.game_name,
-        first_game,
-        target_word.len()
-    )));
-}
-
-pub async fn handle_bot_command(e: Event, state: State<App>) -> Result<Action, anyhow::Error> {
-    // Get the command
-    let command = e
-        .update
-        .get_message()?
-        .text
-        .as_ref()
-        .ok_or(anyhow!("No command"))?;
-
-    let reply = match command.as_str() {
-        "/help" => {
-            let game_name = state.get().read().await.game_name.clone();
-            format!(
-                "Welcome to {}! The goal of the game is to guess the target word within 6 tries.
-
-Type /new to restart the game or /score to see your score",
-                game_name
-            )
-        }
-
-        "/new" => {
-            return new_game(e, state).await;
-        }
-
-        "/start" => {
-            return new_game(e, state).await;
-        }
-
-        "/score" => {
-            let from = e.update.get_message()?.clone().from.unwrap_or_default();
-            let mut app = state.get().write().await;
-
-            // Get the application state
-            if let Err(e) = app.load(&from).await {
-                warn!("No saved game state: {}", e);
-                format!("You have not played any games yet.")
-            } else {
-                format!("Your score: {}", app.score(&from.id.to_string()).await)
-            }
-        }
-
-        _ => "I don't know that command.".into(),
-    };
-
-    Ok(Action::ReplyText(reply))
-}
-
-/// handle_chat_event is the main Telegram handler for the bot.
-pub async fn handle_chat_event(e: Event, state: State<App>) -> Result<Action, anyhow::Error> {
-    // Get the message
-    let message = e.update.get_message()?.clone().text.unwrap().clone();
-
-    // Get the sender's first name
-    let from = e.update.get_message()?.clone().from.unwrap_or_default();
-
-    // Get the application state
-    if let Err(e) = state.get().write().await.load(&from).await {
-        warn!("No saved game state: {}", e);
-    }
-
-    // If there's no active game, start one.
-    if state.get().read().await.wordle.is_none() {
-        // Scan the list for an unplayed word, or pick a random one.
-        return new_game(e, state).await;
-    }
-
-    let mut app = state.get().write().await;
-
-    // There's an active game, so get the target word.
-    let target_word = app.wordle.as_ref().unwrap().target_word.clone();
-    info!(
-        "{} ({}) guessed {}",
-        from.first_name,
-        from.username.clone().unwrap_or("unknown".into()),
-        message
-    );
-
-    // Check if the message is the right length.
-    if message.len() != target_word.len() {
-        return Ok(Action::ReplyText(format!(
-            "Sorry {}, the word must be {} letters long. Try again.",
-            from.first_name,
-            target_word.len()
-        )));
-    }
-
-    // Check if the message is a valid word.
-    if !app.valid_words.is_empty() && !app.valid_words.contains(&message.to_ascii_lowercase()) {
-        return Ok(Action::ReplyText(format!(
-            "Sorry {}, that's not a valid word. Try again.",
-            from.first_name
-        )));
-    }
-
-    // Play the turn.
-    let wordle = app.wordle.as_mut().unwrap();
-    let game = wordle.play_turn(message.clone())?;
-    let mut reply = render_game(&game);
-
-    match game.state {
-        game::State::Playing => reply.push_str(
-            format!(
-                "\nNice try\\. Guess another word\\?\nAttempts: {}",
-                game.attempted_letters()
-                    .iter()
-                    .map(|c| format!("`{}`", c))
-                    .collect::<Vec<_>>()
-                    .join(" ")
-            )
-            .as_str(),
-        ),
-        game::State::Won => {
-            app.won_words.insert(target_word);
-            app.wordle = None;
-            app.inc_wins(&from).await;
-            reply.push_str(
-                escape_md(
-                    format!(
-                        "\nYou won! \u{1F46F}\nYour score: {}",
-                        app.score(&from.id.to_string()).await
-                    )
-                    .as_str(),
-                )
-                .as_str(),
-            );
-            info!(
-                "{} ({}) won with {}",
-                from.first_name,
-                from.clone().username.unwrap_or("unknown".into()),
-                message
-            );
-        }
-        game::State::Lost => {
-            reply.push_str(
-                escape_md(
-                    format!(
-                        "\nYou lost! Target word: {} \u{1F979}\nYour score: {}",
-                        target_word.to_uppercase(),
-                        app.score(&from.id.to_string()).await
-                    )
-                    .as_str(),
-                )
-                .as_str(),
-            );
-            app.wordle = None;
-            info!(
-                "{} ({}) lost with {} (target: {})",
-                from.first_name,
-                from.clone().username.unwrap_or("unknown".into()),
-                message,
-                target_word
-            );
-        }
-    }
-
-    if let Err(e) = app.save(&from).await {
-        error!("Error saving game state: {}", e);
-    }
-
-    Ok(Action::ReplyMarkdown(reply))
 }
