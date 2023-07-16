@@ -13,7 +13,7 @@ Telegram API framework.
 
 ## Try it out
 
-You can try out Bad Worlde Bot by starting a chat with [@rudlebot](https://t.me/rudlebot). Probably NSFW.
+You can try out _Rude Worlde Bot_ by starting a chat with [@rudlebot](https://t.me/rudlebot). Probably NSFW.
 
 ![melon](https://github.com/0xfe/wordlebot/assets/241299/df213dfb-40fd-4c32-ab01-68a5f47c223b)
 
