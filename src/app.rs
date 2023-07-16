@@ -66,6 +66,15 @@ struct SaveData {
     last_wordle: Option<Wordle>,
 }
 
+/// AdminSavedate represents the data that is saved for the admin.
+#[derive(Serialize, Deserialize)]
+struct AdminSaveData {
+    #[serde(default)]
+    admin_handle: Option<String>,
+    #[serde(default)]
+    admin_chat_id: Option<i64>,
+}
+
 /// App represents the bot state for the wordle bot.
 #[derive(Clone, Default, BotState)]
 pub struct App {
@@ -122,12 +131,70 @@ impl App {
     }
 
     /// Authorizes the user as an admin.
-    pub async fn auth_admin(&mut self, username: &str, chat_id: i64) -> bool {
+    pub async fn auth_admin(&mut self, username: &str, chat_id: i64) -> Result<bool> {
         if self.admin_user.is_some() && self.admin_user.as_ref().unwrap().eq(username) {
             *self.admin_chat_id.write().await = Some(chat_id);
-            return true;
+
+            // Save admin data
+            let filename = format!("{}/admin.json", self.save_dir);
+            let mut file = File::create(filename.clone())
+                .await
+                .context(format!("Error creating file {}", filename))?;
+
+            let admin_save_data = AdminSaveData {
+                admin_chat_id: *self.admin_chat_id.read().await,
+                admin_handle: self.admin_user.clone(),
+            };
+
+            file.write_all(
+                serde_json::to_vec(&admin_save_data)
+                    .context("Error serializing game state")?
+                    .as_ref(),
+            )
+            .await
+            .context(format!("Error writing file {}", filename))?;
+            return Ok(true);
         }
-        false
+        Ok(false)
+    }
+
+    pub async fn load_admin(&mut self, admin_user: Option<String>) -> Result<()> {
+        if admin_user.is_none() {
+            info!("No admin user set");
+            return Ok(());
+        }
+
+        self.admin_user = admin_user;
+        let filename = format!("{}/admin.json", self.save_dir);
+        let mut file = File::open(filename.clone())
+            .await
+            .context(format!("Error opening file {}", filename))?;
+
+        let mut contents = vec![];
+        file.read_to_end(&mut contents)
+            .await
+            .context(format!("Error reading file {}", filename))?;
+
+        let admin_save_data: AdminSaveData = serde_json::from_slice(&contents)
+            .context(format!("Error deserializing file {}", filename))?;
+
+        if admin_save_data.admin_handle.is_some()
+            && self.admin_user.as_ref().unwrap() == admin_save_data.admin_handle.as_ref().unwrap()
+        {
+            *self.admin_chat_id.write().await = admin_save_data.admin_chat_id;
+            info!(
+                "Sending admin logs to {} at chat: {}",
+                self.admin_user.as_ref().unwrap(),
+                admin_save_data.admin_chat_id.unwrap_or(0)
+            );
+        } else {
+            info!(
+                "Not loading admin chat ID for {:?}",
+                admin_save_data.admin_handle.unwrap()
+            );
+        }
+
+        Ok(())
     }
 
     /// Sends a log message to the admin chat
@@ -198,6 +265,7 @@ impl App {
         }
     }
 
+    /// Plays a turn for the user with the given word.
     pub async fn play_turn(&mut self, from: &User, word: String) -> anyhow::Result<Move> {
         if !self.is_valid_word(word.clone()) {
             return Ok(Move::InvalidWord);
@@ -208,6 +276,11 @@ impl App {
         }
 
         let game = self.wordle.as_mut().unwrap().play_turn(word)?;
+
+        if let Err(e) = self.save(&from).await {
+            error!("Error saving game state: {}", e);
+        }
+
         match game.state {
             game::State::Won => {
                 self.inc_wins(&from).await;

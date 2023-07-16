@@ -79,10 +79,13 @@ async fn start(args: Args) -> anyhow::Result<()> {
 
     // Initialize the bot app state.
     let mut app = App::new(args.game_name, target_words);
-    app.admin_user = args.admin_username;
-
-    app.set_valid_words(valid_words);
     app.set_save_dir(args.save_dir.unwrap_or_default());
+    app.set_valid_words(valid_words);
+
+    // Load the admin save data.
+    if let Err(e) = app.load_admin(args.admin_username).await {
+        error!("Could not load admin data: {}", e);
+    }
 
     // Initialize the Telegram client.
     let client = Client::new(

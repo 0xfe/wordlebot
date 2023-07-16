@@ -8,6 +8,7 @@ Telegram API framework.
 - Provide arbitrary word lists, of any length (not just 5-letters)
 - Keeps track of words, wins, losses, etc. per user.
 - Persists state of all games through restarts.
+- Stream logs to admin chat account
 - Words must be offensive (okay, that's not a real feature)
 
 ## Try it out
@@ -21,7 +22,7 @@ You can try out Bad Worlde Bot by starting a chat with [@badwordlebot](https://t
 Set you Telegram API key and run `wordlebot` with a set of word files:
 
 ```
-Usage: wordlebot [-n <game-name>] [-t <target-words>] [-v <valid-words>] [-s <save-dir>]
+Usage: wordlebot [-n <game-name>] [-t <target-words>] [-v <valid-words>] [-s <save-dir>] [-a <admin-username>]
 
 Reach new heights.
 
@@ -31,6 +32,9 @@ Options:
                     file containing target words for the bot, one per line
   -v, --valid-words file containing valid words for the bot, one per line
   -s, --save-dir    directory to save user state. If empty, state is not saved.
+  -a, --admin-username
+                    authorized username for admin functions. If empty, no admin
+                    functions.
   --help            display usage information
 ```
 
@@ -45,10 +49,11 @@ wordlebot -t target_words.txt -v validwords.txt -s /path/to/savedir
 
 - [x] Show letters already guessed
 - [x] Handle duplicate letters correctly
-- [ ] Bot Commands
-  - [ ] /help
-  - [ ] /quit
-  - [ ] /score
+- [x] Bot Commands
+  - [x] /help
+  - [x] /admin
+  - [x] /new and /start
+  - [x] /score
 
 ## License
 

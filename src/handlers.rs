@@ -52,6 +52,7 @@ pub async fn handle_new_game(e: Event, state: State<App>) -> Result<Action, anyh
     }
 
     target_word = app.start_game().await?;
+    app.inc_games(&from).await; // saves state
 
     info!(
         "Starting new game with {} ({}), target word: {}.",
@@ -60,13 +61,23 @@ pub async fn handle_new_game(e: Event, state: State<App>) -> Result<Action, anyh
         target_word
     );
 
+    app.admin_log(
+        Arc::clone(&e.api),
+        format!(
+            "{} ({}) starting a new game with word {}.",
+            from.first_name,
+            from.username.clone().unwrap_or_default(),
+            target_word,
+        ),
+    )
+    .await;
+
     let first_game = if app.score(&from.id.to_string()).await.games == 0 {
         "This is your first game.".to_string()
     } else {
         format!("Your score: {}.", app.score(&from.id.to_string()).await)
     };
 
-    app.inc_games(&from).await;
     return Ok(Action::ReplyText(format!(
         "Hi {}, Welcome to {}!\n\n{}\nGuess the {}-letter word.",
         from.first_name,
@@ -116,7 +127,7 @@ Type /new to restart the game or /score to see your score",
                         .as_str(),
                     e.update.chat_id()?,
                 )
-                .await
+                .await?
             {
                 "Admin messages routed to this chat.".into()
             } else {
@@ -261,29 +272,28 @@ pub async fn handle_chat_event(e: Event, state: State<App>) -> Result<Action, an
         }
     }
 
-    let app = state.get().write().await;
-    app.admin_log(
-        Arc::clone(&e.api),
-        format!(
-            "{} ({}) played word '{}' against '{}' {}.",
-            from.first_name,
-            from.username.clone().unwrap_or_default(),
-            message,
-            target_word,
-            match turn {
-                Move::InvalidWord => "which was invalid",
-                Move::InvalidLength => "which was the wrong length",
-                Move::Valid => "which was valid",
-                Move::Won => "and won",
-                Move::Lost => "and lost",
-            }
-        ),
-    )
-    .await;
-
-    if let Err(e) = app.save(&from).await {
-        error!("Error saving game state: {}", e);
-    }
+    state
+        .get()
+        .read()
+        .await
+        .admin_log(
+            Arc::clone(&e.api),
+            format!(
+                "{} ({}) played word '{}' against '{}' {}.",
+                from.first_name,
+                from.username.clone().unwrap_or_default(),
+                message,
+                target_word,
+                match turn {
+                    Move::InvalidWord => "which was invalid",
+                    Move::InvalidLength => "which was the wrong length",
+                    Move::Valid => "which was valid",
+                    Move::Won => "and won",
+                    Move::Lost => "and lost",
+                }
+            ),
+        )
+        .await;
 
     Ok(Action::ReplyMarkdown(reply))
 }
