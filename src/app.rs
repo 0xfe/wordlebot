@@ -71,7 +71,7 @@ struct SaveData {
 pub struct App {
     // App global
     pub game_name: String,
-    admin_user: Option<String>,
+    pub admin_user: Option<String>,
     admin_chat_id: Arc<RwLock<Option<i64>>>,
     save_dir: String,
     scores: Arc<RwLock<HashMap<String, Score>>>,
@@ -137,7 +137,8 @@ impl App {
             _ = api
                 .send_message(&api::SendMessageRequest {
                     chat_id,
-                    text,
+                    text: format!("`{}`", api::escape_code(text.as_str())),
+                    parse_mode: Some(api::ParseMode::MarkdownV2),
                     ..Default::default()
                 })
                 .await;

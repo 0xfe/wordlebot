@@ -35,6 +35,10 @@ struct Args {
     /// directory to save user state. If empty, state is not saved.
     #[argh(option, short = 's')]
     save_dir: Option<String>,
+
+    /// authorized username for admin functions. If empty, no admin functions.
+    #[argh(option, short = 'a')]
+    admin_username: Option<String>,
 }
 
 // read_words reads a file containing one word per line, and returns a vector of
@@ -75,6 +79,8 @@ async fn start(args: Args) -> anyhow::Result<()> {
 
     // Initialize the bot app state.
     let mut app = App::new(args.game_name, target_words);
+    app.admin_user = args.admin_username;
+
     app.set_valid_words(valid_words);
     app.set_save_dir(args.save_dir.unwrap_or_default());
 

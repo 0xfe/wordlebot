@@ -183,11 +183,30 @@ pub async fn handle_chat_event(e: Event, state: State<App>) -> Result<Action, an
         message
     );
 
-    let mut app = state.get().write().await;
-    let turn = app.play_turn(&from, message.clone()).await?;
-    let wordle = app.wordle.as_mut().unwrap();
-    let mut reply = render_game(&wordle.game()?);
-    let target_word = wordle.target_word.clone();
+    // Play a turn
+    let turn = state
+        .get()
+        .write()
+        .await
+        .play_turn(&from, message.clone())
+        .await?;
+
+    let (mut reply, target_word, attempted_letters, score) = {
+        let app = state.get().read().await;
+        let wordle = app.wordle.as_ref().unwrap();
+        let reply = render_game(&wordle.game()?);
+        let target_word = wordle.target_word.clone().to_uppercase();
+        let attempted_letters = wordle
+            .game()?
+            .attempted_letters()
+            .iter()
+            .map(|c| format!("`{}`", c))
+            .collect::<Vec<_>>()
+            .join(" ");
+        let score = app.score(&from.id.to_string()).await;
+
+        (reply, target_word, attempted_letters, score)
+    };
 
     match turn {
         Move::InvalidWord => {
@@ -206,26 +225,13 @@ pub async fn handle_chat_event(e: Event, state: State<App>) -> Result<Action, an
         Move::Valid => reply.push_str(
             format!(
                 "\nNice try\\. Guess another word\\?\nAttempts: {}",
-                wordle
-                    .game()?
-                    .attempted_letters()
-                    .iter()
-                    .map(|c| format!("`{}`", c))
-                    .collect::<Vec<_>>()
-                    .join(" ")
+                attempted_letters
             )
             .as_str(),
         ),
         Move::Won => {
             reply.push_str(
-                escape_md(
-                    format!(
-                        "\nYou won! \u{1F46F}\nYour score: {}",
-                        app.score(&from.id.to_string()).await
-                    )
-                    .as_str(),
-                )
-                .as_str(),
+                escape_md(format!("\nYou won! \u{1F46F}\nYour score: {}", score).as_str()).as_str(),
             );
             info!(
                 "{} ({}) won with {}",
@@ -239,8 +245,7 @@ pub async fn handle_chat_event(e: Event, state: State<App>) -> Result<Action, an
                 escape_md(
                     format!(
                         "\nYou lost! Target word: {} \u{1F979}\nYour score: {}",
-                        target_word.to_uppercase(),
-                        app.score(&from.id.to_string()).await
+                        target_word, score
                     )
                     .as_str(),
                 )
@@ -255,6 +260,26 @@ pub async fn handle_chat_event(e: Event, state: State<App>) -> Result<Action, an
             );
         }
     }
+
+    let app = state.get().write().await;
+    app.admin_log(
+        Arc::clone(&e.api),
+        format!(
+            "{} ({}) played word '{}' against '{}' {}.",
+            from.first_name,
+            from.username.clone().unwrap_or_default(),
+            message,
+            target_word,
+            match turn {
+                Move::InvalidWord => "which was invalid",
+                Move::InvalidLength => "which was the wrong length",
+                Move::Valid => "which was valid",
+                Move::Won => "and won",
+                Move::Lost => "and lost",
+            }
+        ),
+    )
+    .await;
 
     if let Err(e) = app.save(&from).await {
         error!("Error saving game state: {}", e);
