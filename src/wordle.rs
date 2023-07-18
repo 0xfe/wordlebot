@@ -17,7 +17,7 @@ pub enum State {
 
 /// Letter represents the position of a single letter in an attempted
 /// word.
-#[derive(Debug)]
+#[derive(Debug, Eq, PartialEq, Clone)]
 pub enum Letter {
     Correct(char),
     CorrectButWrongPosition(char),

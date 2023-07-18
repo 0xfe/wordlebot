@@ -10,11 +10,11 @@ use mobot::*;
 use rand::seq::SliceRandom;
 
 mod app;
-mod game;
 mod handlers;
+mod wordle;
 
 #[derive(FromArgs)]
-/// Reach new heights.
+/// wordlebot is a Telegram bot that plays Wordle.
 struct Args {
     /// how the bot presents itself in the welcome message
     #[argh(
@@ -94,9 +94,7 @@ async fn start(args: Args) -> anyhow::Result<()> {
             .into(),
     );
 
-    let mut router = Router::new(client).with_state(app);
-
-    // Setup bot commands
+    // Register bot commands for the Telegram menu
     let commands = vec![
         api::BotCommand {
             command: "/help".into(),
@@ -112,6 +110,8 @@ async fn start(args: Args) -> anyhow::Result<()> {
         },
     ];
 
+    // Setup router
+    let mut router = Router::new(client).with_state(app);
     router
         .api
         .set_my_commands(&api::SetMyCommandsRequest {
@@ -145,3 +145,6 @@ async fn main() -> std::process::ExitCode {
 
     std::process::ExitCode::SUCCESS
 }
+
+#[cfg(test)]
+mod wordle_test;

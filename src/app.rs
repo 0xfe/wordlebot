@@ -17,8 +17,8 @@ use tokio::{
 
 use serde::{Deserialize, Serialize};
 
-use crate::game;
-use crate::game::Wordle;
+use crate::wordle;
+use crate::wordle::Wordle;
 
 pub enum Move {
     Valid,
@@ -109,7 +109,7 @@ impl App {
         }
 
         match self.wordle.as_ref().unwrap().game().unwrap().state {
-            game::State::Playing => true,
+            wordle::State::Playing => true,
             _ => false,
         }
     }
@@ -282,11 +282,11 @@ impl App {
         }
 
         match game.state {
-            game::State::Won => {
+            wordle::State::Won => {
                 self.inc_wins(&from).await;
                 Ok(Move::Won)
             }
-            game::State::Lost => Ok(Move::Lost),
+            wordle::State::Lost => Ok(Move::Lost),
             _ => Ok(Move::Valid),
         }
     }

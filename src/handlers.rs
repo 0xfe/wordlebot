@@ -6,7 +6,7 @@ use mobot::api::escape_md;
 use mobot::*;
 
 use crate::app::*;
-use crate::game;
+use crate::wordle;
 
 /// emoji_letter takes a capital letter and returns the corresponding emoji letter
 /// inside the Regional Indicator Symbol range.
@@ -20,16 +20,18 @@ fn emoji_letter(l: char) -> char {
 
 /// render_game takes a game::Game and returns a string representation of it.
 /// Emoji codepoints: https://emojipedia.org/emoji/
-fn render_game(game: &game::Game) -> String {
+fn render_game(game: &wordle::Game) -> String {
     let mut s = String::from("Your attempts:\n\n");
     for attempt in &game.attempts {
         for letter in attempt {
             match letter {
-                game::Letter::Correct(c) => {
+                wordle::Letter::Correct(c) => {
                     s.push_str(&format!(" {}", emoji_letter(*c).to_string()))
                 }
-                game::Letter::CorrectButWrongPosition(c) => s.push_str(&format!(" * `{}` *  ", c)),
-                game::Letter::Wrong(c) => {
+                wordle::Letter::CorrectButWrongPosition(c) => {
+                    s.push_str(&format!(" * `{}` *  ", c))
+                }
+                wordle::Letter::Wrong(c) => {
                     s.push_str(&format!(" || ~{}~ ||  ", c))
                     // s.push_str("\u{2796} ")
                 }
