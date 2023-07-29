@@ -165,21 +165,21 @@ pub async fn handle_chat_event(e: Event, state: State<App>) -> Result<Action, an
     let from = e.update.get_message()?.clone().from.unwrap_or_default();
 
     // Get the application state
-    if let Err(err) = state.get().write().await.load(&from).await {
-        warn!("No saved game state: {}", err);
-        state
-            .get()
-            .read()
-            .await
-            .admin_log(
-                Arc::clone(&e.api),
-                format!(
-                    "New user: {} ({})",
-                    from.first_name,
-                    from.username.clone().unwrap_or_default()
-                ),
-            )
-            .await;
+    {
+        let mut state = state.get().write().await;
+        if let Err(err) = state.load(&from).await {
+            warn!("No saved game state: {}", err);
+            state
+                .admin_log(
+                    Arc::clone(&e.api),
+                    format!(
+                        "New user: {} ({})",
+                        from.first_name,
+                        from.username.clone().unwrap_or_default()
+                    ),
+                )
+                .await;
+        }
     }
 
     // If there's no active game, start one.

@@ -19,4 +19,9 @@ fn it_works() {
         game.attempts.first().unwrap().get(2).unwrap().clone(),
         Letter::Correct('L')
     );
+
+    assert_eq!(game.state, State::Playing);
+
+    let game = wordle.play_turn("hello").unwrap();
+    assert_eq!(game.state, State::Won);
 }

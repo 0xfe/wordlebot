@@ -148,3 +148,6 @@ async fn main() -> std::process::ExitCode {
 
 #[cfg(test)]
 mod wordle_test;
+
+#[cfg(test)]
+mod app_test;
