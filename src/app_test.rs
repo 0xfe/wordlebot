@@ -2,6 +2,9 @@ use crate::{app::App, handlers::handle_chat_event};
 use log::*;
 use mobot::*;
 
+/// This is an end-to-end test that starts the bot with just one target word ("hello"). It then
+/// starts two chats with the bot, and has them play the game. The first chat should win right
+/// away, and the second chat attempts 6 turns and loses.
 #[tokio::test]
 async fn it_works() {
     mobot::init_logger();
@@ -13,10 +16,7 @@ async fn it_works() {
 
     // Keep the Telegram poll timeout short for testing. The default Telegram poll timeout is 60s.
     let mut router = Router::new(client)
-        .with_state(App::new(
-            "BadWordle".into(),
-            vec!["hello".to_string(), "world".to_string()],
-        ))
+        .with_state(App::new("BadWordle".into(), vec!["hello".to_string()]))
         .with_poll_timeout_s(1);
 
     router.add_route(Route::Message(Matcher::Any), handle_chat_event);
@@ -35,29 +35,54 @@ async fn it_works() {
     // username. This shows up in the `from` field of messages.
     let chat = fakeserver.create_chat("qubyte").await;
 
-    // Send the message "ping1", expect the response "pong(1): ping1"
-    println!("Sending ping");
-    chat.send_text("ping1").await.unwrap();
-    println!(
-        "chat.recv_update().await.unwrap().to_string(): {}",
-        chat.recv_update().await.unwrap().to_string()
-    );
+    // Send a message to the bot. This starts a new game.
+    chat.send_text("hi").await.unwrap();
+    assert!(chat
+        .recv_update()
+        .await
+        .unwrap()
+        .to_string()
+        .starts_with("Hi qubyte, Welcome to BadWordle!"));
 
-    /*
-    assert_eq!(
-        chat.recv_update().await.unwrap().to_string(),
-        "pong: qubyte"
-    );
-
+    // Start a new chat as a different user and send a message. This should also
+    // start a new game with the new user.
     let chat2 = fakeserver.create_chat("hacker").await;
+    chat2.send_text("hi").await.unwrap();
+    assert!(chat2
+        .recv_update()
+        .await
+        .unwrap()
+        .to_string()
+        .starts_with("Hi hacker, Welcome to BadWordle!"));
 
-    // Send the message "ping1", expect the response "pong(1): ping1"
-    chat2.send_text("ping1").await.unwrap();
-    assert_eq!(
-        chat2.recv_update().await.unwrap().to_string(),
-        "Sorry! Unauthorized user: hacker."
-    );
-    */
+    // First user attempts a word and wins right away.
+    chat.send_text("hello").await.unwrap();
+    assert!(chat
+        .recv_update()
+        .await
+        .unwrap()
+        .to_string()
+        .contains("You won"));
+
+    // Second user attempts 5 incorrect words and misses.
+    for _ in 0..5 {
+        chat2.send_text("bello").await.unwrap();
+        assert!(chat2
+            .recv_update()
+            .await
+            .unwrap()
+            .to_string()
+            .contains("Your attempts"));
+    }
+
+    // Second user attempts the wrong word and loses.
+    chat2.send_text("bello").await.unwrap();
+    assert!(chat2
+        .recv_update()
+        .await
+        .unwrap()
+        .to_string()
+        .contains("You lost"));
 
     // All done shutdown the router, and wait for it to complete.
     info!("Shutting down...");
